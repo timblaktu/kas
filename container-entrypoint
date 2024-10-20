@@ -22,6 +22,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+log() { printf "ENTRYPOINT: "; printf "$@"; }
+
 # kas-isar: sudo update-binfmts --enable && [ -f /proc/sys/fs/binfmt_misc/status ]
 
 if mount | grep -q "on / type aufs"; then
@@ -36,18 +38,20 @@ EOF
 fi
 
 if [ -z "$USER_ID" ]; then
-	# Not a kas-container call
+    log "Not a kas-container call, running as %s:%s\n" "$(id -u)" "$(id -g)"
 	GOSU=""
 
 	# Work around gitlab-runner not aligning checked out repo ownership
 	# with our builder user
 	sudo git config --system safe.directory "*"
 elif [ "$USER_ID" = 0 ]; then
-	# We shall run everything as root
+	log "kas-container call running as root\n"
 	GOSU=""
 else
-	GROUP_ID=${GROUP_ID:-$(id -g)}
-
+    GROUP_ID=${GROUP_ID:-$(id -g)}
+	log "kas-container call running as modified builder user with %s:%s\n" "$USER_ID" "$GROUP_ID"
+	GOSU="gosu builder"
+    
 	groupmod -o --gid "$GROUP_ID" builder
 	usermod -o --uid "$USER_ID" --gid "$GROUP_ID" builder >/dev/null
 	chown -R "$USER_ID":"$GROUP_ID" /builder
@@ -55,8 +59,6 @@ else
 	if [ -d /var/kas/userdata/.ssh ]; then
 		cp -a /var/kas/userdata/.ssh /builder/
 	fi
-
-	GOSU="gosu builder"
 fi
 
 if [ "$PWD" = / ]; then
@@ -66,17 +68,20 @@ fi
 if [ -n "$1" ]; then
 	case "$1" in
 	build|checkout|dump|for-all-repos|menu|shell|-*)
-		# SC2086: Double quote to prevent globbing and word splitting.
+		log "executing kas command..%s\n" "$*"
+        # SC2086: Double quote to prevent globbing and word splitting.
 		# shellcheck disable=2086
 		exec $GOSU kas "$@"
 		;;
 	*)
+		log "executing non-kas command %s..\n" "$*"
 		# SC2086: Double quote to prevent globbing and word splitting.
 		# shellcheck disable=2086
 		exec $GOSU "$@"
 		;;
 	esac
 else
+    log "ENTRYPOINT: executing bash..\n"
 	# SC2086: Double quote to prevent globbing and word splitting.
 	# shellcheck disable=2086
 	exec $GOSU bash

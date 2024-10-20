@@ -26,6 +26,8 @@
 # SOFTWARE.
 
 set -e
+# check verbosity early to enable debugging
+[ "${@[*]#*-v }" != "$*" -o "${@[*]#*-d }" != "$*" -o "${@[*]#*-l debug}" -o "${@[*]#*--log-level debug}" ] && KAS_VERBOSE=1
 
 KAS_IMAGE_VERSION_DEFAULT="4.5"
 KAS_CONTAINER_IMAGE_PATH_DEFAULT="ghcr.io/siemens/kas"
@@ -100,8 +102,11 @@ warning(){
 	echo "${KAS_CONTAINER_SELF_NAME}: Warning: $*" >&2
 }
 
-trace()
-{
+debug(){ 
+	[ -n "${KAS_VERBOSE}" ] && echo "${KAS_CONTAINER_SELF_NAME}: Debug: $*" >&2
+}
+
+trace(){
 	[ -n "${KAS_VERBOSE}" ] && echo "+ $*" >&2
 	"$@"
 }
@@ -168,6 +173,9 @@ trace mkdir -p "${KAS_WORK_DIR}"
 KAS_BUILD_DIR=$(readlink -fv "${KAS_BUILD_DIR:-${KAS_WORK_DIR}/build}")
 trace mkdir -p "${KAS_BUILD_DIR}"
 
+### MAIN?
+
+
 KAS_CONTAINER_ENGINE="${KAS_CONTAINER_ENGINE:-${KAS_DOCKER_ENGINE}}"
 if [ -z "${KAS_CONTAINER_ENGINE}" ]; then
 	# Try to auto-detect a container engine
@@ -207,8 +215,9 @@ podman)
 	;;
 esac
 
-# parse kas-container options
+debug "parsing $# args: $*"
 while [ $# -gt 0 ]; do
+    debug "parsing arg: $1"
 	case "$1" in
 	--isar)
 		enable_isar_mode
@@ -236,8 +245,10 @@ while [ $# -gt 0 ]; do
 		shift 1
 		;;
 	--runtime-args|--docker-args)
+        debug "\$#=$# parsing --runtime-args $2"
 		[ $# -gt 0 ] || usage
 		KAS_RUNTIME_ARGS="${KAS_RUNTIME_ARGS} $2"
+        debug "KAS_RUNTIME_ARGS=$KAS_RUNTIME_ARGS"
 		shift 2
 		;;
 	--ssh-dir)
@@ -294,6 +305,7 @@ while [ $# -gt 0 ]; do
 		usage 0
 		;;
 	--*)
+		echo "--*"
 		usage
 		;;
 	clean|cleansstate|cleanall)
@@ -324,9 +336,11 @@ while [ $# -gt 0 ]; do
 		break
 		;;
 	*)
-		usage
+        debug "unrecognized arg: $1"
+        usage
 		;;
 	esac
+    debug "$# args remaining: $*"
 done
 
 [ -n "${KAS_CMD}" ] || usage
