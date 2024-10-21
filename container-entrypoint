@@ -22,7 +22,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-log() { printf "ENTRYPOINT: "; printf "$@"; }
+log() { [ $KAS_VERBOSE -eq 1 ] && printf "ENTRYPOINT: %s\n" "$*"; }
 
 # kas-isar: sudo update-binfmts --enable && [ -f /proc/sys/fs/binfmt_misc/status ]
 
