@@ -27,7 +27,8 @@
 
 set -e
 # check verbosity early to enable debugging
-[ "${@[*]#*-v }" != "$*" -o "${@[*]#*-d }" != "$*" -o "${@[*]#*-l debug}" -o "${@[*]#*--log-level debug}" ] && KAS_VERBOSE=1
+_="$*"
+[ "${_#*-v }" != "$*" -o "${_#*-d }" != "$*" -o "${_#*-l debug}" -o "${_#*--log-level debug}" ] && KAS_VERBOSE=1
 
 KAS_IMAGE_VERSION_DEFAULT="4.5"
 KAS_CONTAINER_IMAGE_PATH_DEFAULT="ghcr.io/siemens/kas"
@@ -479,7 +480,8 @@ set -- "$@" -v "${KAS_REPO_DIR}:/repo:${KAS_REPO_MOUNT_OPT}" \
 	-v "${KAS_BUILD_DIR}":/build:rw \
 	--workdir=/repo \
 	-e KAS_BUILD_DIR=/build \
-	-e USER_ID="$(id -u)" -e GROUP_ID="$(id -g)" --rm --init
+	-e USER_ID="$(id -u)" -e GROUP_ID="$(id -g)" --rm --init \
+    -e KAS_VERBOSE=${KAS_VERBOSE:-0}
 
 if [ -n "${KAS_SSH_DIR}" ] ; then
 	if [ ! -d "${KAS_SSH_DIR}" ]; then
