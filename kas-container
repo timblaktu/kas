@@ -34,6 +34,7 @@ KAS_IMAGE_VERSION_DEFAULT="4.5"
 KAS_CONTAINER_IMAGE_PATH_DEFAULT="ghcr.io/siemens/kas"
 KAS_CONTAINER_IMAGE_NAME_DEFAULT="kas"
 KAS_CONTAINER_SELF_NAME="$(basename "$0")"
+KAS_REPO_DIR=$(pwd)  # extricate default value for this var from existence of KAS_FILES
 
 # usage [exit_code]
 usage()
@@ -41,7 +42,7 @@ usage()
 	EXIT_CODE="$1"
 	SELF="${KAS_CONTAINER_SELF_NAME}"
 
-	printf "%b" "Usage: ${SELF} [OPTIONS] { build | shell } [KASOPTIONS] [KASFILE]\n"
+	printf "%b" "Usage: ${SELF} [OPTIONS] { build | shell | runcmd} [KASOPTIONS] [KASFILE]\n"
 	printf "%b" "       ${SELF} [OPTIONS] { checkout | dump } [KASOPTIONS] [KASFILE]\n"
 	printf "%b" "       ${SELF} [OPTIONS] for-all-repos [KASOPTIONS] [KASFILE] COMMAND\n"
 	printf "%b" "       ${SELF} [OPTIONS] { clean | cleansstate | cleanall} [KASFILE]\n"
@@ -52,6 +53,7 @@ usage()
 	printf "%b" "dump\t\t\tCheck out repositories and write flat version\n"
 	printf "%b" "    \t\t\tof config to stdout.\n"
 	printf "%b" "shell\t\t\tRun a shell in the build environment.\n"
+	printf "%b" "runcmd\t\t\tRun a command in the kas container environment.\n"
 	printf "%b" "for-all-repos\t\tRun specified command in each repository.\n"
 	printf "%b" "clean\t\t\tClean build artifacts, keep sstate cache and " \
 		    "downloads.\n"
@@ -85,7 +87,7 @@ usage()
 	printf "%b" "--repo-ro\t\tMount current repository read-only\n" \
 		    "\t\t\t(default for build command)\n"
 	printf "%b" "--repo-rw\t\tMount current repository writeable\n" \
-		    "\t\t\t(default for shell command)\n"
+		    "\t\t\t(default for shell and runcmd commands)\n"
 	printf "%b" "-h, --help\t\tShow this help message and exit.\n"
 	printf "%b" "\n"
 	printf "%b" "You can force the use of podman over docker using " \
@@ -95,16 +97,16 @@ usage()
 }
 
 fatal_error(){
-	echo "${KAS_CONTAINER_SELF_NAME}: Error: $*" >&2
+	echo "${KAS_CONTAINER_SELF_NAME}: ERROR: $*" >&2
 	exit 1
 }
 
 warning(){
-	echo "${KAS_CONTAINER_SELF_NAME}: Warning: $*" >&2
+	echo "${KAS_CONTAINER_SELF_NAME}: WARN : $*" >&2
 }
 
 debug(){ 
-	[ -n "${KAS_VERBOSE}" ] && echo "${KAS_CONTAINER_SELF_NAME}: Debug: $*" >&2
+	[ -n "${KAS_VERBOSE}" ] && echo "${KAS_CONTAINER_SELF_NAME}: DEBUG: $*" >&2
 }
 
 trace(){
@@ -314,7 +316,7 @@ while [ $# -gt 0 ]; do
 		shift 1
 		break
 		;;
-	shell)
+	shell|runcmd)
 		KAS_REPO_MOUNT_OPT_DEFAULT="rw"
 		KAS_CMD=$1
 		shift 1
@@ -348,112 +350,119 @@ done
 
 KAS_EXTRA_BITBAKE_ARGS=0
 
-# parse kas sub-command options
-while [ $# -gt 0 ] && [ $KAS_EXTRA_BITBAKE_ARGS -eq 0 ]; do
-	case "$1" in
-	--skip|--target|--task)
-		KAS_OPTIONS="${KAS_OPTIONS} $1 $2"
-		shift 1
-		shift 1 || KAS_OPTIONS="--help"
-		;;
-	-c|--cmd|--command)
-		KAS_BITBAKE_C_OPTION_ARGS="$2"
-		shift 1
-		shift 1 || KAS_OPTIONS="--help"
-		;;
-	-E|--preserve-env)
-		fatal_error "$1 is not supported with ${KAS_CONTAINER_SELF_NAME}"
-		;;
-	--provenance)
-		KAS_OPTIONS="${KAS_OPTIONS} $1 $2"
-		shift 1
-		shift 1 || KAS_OPTIONS="--help"
-		;;
-	--)
-		KAS_EXTRA_BITBAKE_ARGS=$#
-		;;
-	-*)
-		KAS_OPTIONS="${KAS_OPTIONS} $1"
-		shift 1
-		;;
-	*)
-		ARG="$1"
-		shift 1
-		if [ "$KAS_CMD" = "for-all-repos" ]; then
-			if [ $# -gt 0 ]; then
-				KAS_REPO_CMD="$1"
-				shift 1
-			else
-				KAS_REPO_CMD="$ARG"
-				unset ARG
-			fi
-		fi
-		KAS_FILES=
-		# SC2086: Double quote to prevent globbing and word splitting.
-		# shellcheck disable=2086
-		for FILE in $(IFS=':'; echo $ARG); do
-			if ! KAS_REAL_FILE="$(realpath -qe "$FILE")"; then
-				fatal_error "configuration file '${FILE}' not found"
-			fi
-			if [ -z "${KAS_FILES}" ]; then
-				KAS_FIRST_FILE="${KAS_REAL_FILE}"
-				KAS_FILES="${KAS_REAL_FILE}"
-			else
-				KAS_FILES="${KAS_FILES}:${KAS_REAL_FILE}"
-			fi
-		done
-		;;
-	esac
-done
+if [ "$KAS_CMD" != "runcmd" ]; then
+    debug "parsing options for sub-command ${KAS_CMD}"
+    while [ $# -gt 0 ] && [ $KAS_EXTRA_BITBAKE_ARGS -eq 0 ]; do
+        debug "    parsing arg: $1"
+        case "$1" in
+        --skip|--target|--task)
+            KAS_OPTIONS="${KAS_OPTIONS} $1 $2"
+            shift 1
+            shift 1 || KAS_OPTIONS="--help"
+            ;;
+        -c|--cmd|--command)
+            KAS_BITBAKE_C_OPTION_ARGS="$2"
+            shift 1
+            shift 1 || KAS_OPTIONS="--help"
+            ;;
+        -E|--preserve-env)
+            fatal_error "$1 is not supported with ${KAS_CONTAINER_SELF_NAME}"
+            ;;
+        --provenance)
+            KAS_OPTIONS="${KAS_OPTIONS} $1 $2"
+            shift 1
+            shift 1 || KAS_OPTIONS="--help"
+            ;;
+        --)
+            KAS_EXTRA_BITBAKE_ARGS=$#
+            ;;
+        -*)
+            KAS_OPTIONS="${KAS_OPTIONS} $1"
+            shift 1
+            ;;
+        *)
+            debug "    handling positional args: $*"
+            ARG="$1"
+            shift 1
+            if [ "$KAS_CMD" = "for-all-repos" ]; then
+                if [ $# -gt 0 ]; then
+                    KAS_REPO_CMD="$1"
+                    shift 1
+                else
+                    KAS_REPO_CMD="$ARG"
+                    unset ARG
+                fi
+            fi
+            KAS_FILES=
+            # SC2086: Double quote to prevent globbing and word splitting.
+            # shellcheck disable=2086
+            for FILE in $(IFS=':'; echo $ARG); do
+                if ! KAS_REAL_FILE="$(realpath -qe "$FILE")"; then
+                    fatal_error "configuration file '${FILE}' not found"
+                fi
+                if [ -z "${KAS_FILES}" ]; then
+                    KAS_FIRST_FILE="${KAS_REAL_FILE}"
+                    KAS_FILES="${KAS_REAL_FILE}"
+                else
+                    KAS_FILES="${KAS_FILES}:${KAS_REAL_FILE}"
+                fi
+            done
+            ;;
+        esac
+        debug "    $# args remaining: $*"
+    done
 
-if [ -n "${KAS_FIRST_FILE}" ]; then
-	KAS_FILE_DIR="$(dirname "${KAS_FIRST_FILE}")"
-	KAS_REPO_DIR=$(git -C "${KAS_FILE_DIR}" rev-parse --show-toplevel 2>/dev/null) \
-		|| KAS_REPO_DIR=$(hg --cwd "${KAS_FILE_DIR}" root 2>/dev/null) \
-		|| KAS_REPO_DIR=${KAS_FILE_DIR}
+    if [ -n "${KAS_FIRST_FILE}" ]; then
+        KAS_FILE_DIR="$(dirname "${KAS_FIRST_FILE}")"
+        KAS_REPO_DIR=$(git -C "${KAS_FILE_DIR}" rev-parse --show-toplevel 2>/dev/null) \
+            || KAS_REPO_DIR=$(hg --cwd "${KAS_FILE_DIR}" root 2>/dev/null) \
+            || KAS_REPO_DIR=${KAS_FILE_DIR}
+    fi
+
+    SOURCE_DIR_HOST=$(
+        grep -e "^_source_dir_host: " "${KAS_WORK_DIR}/.config.yaml" 2>/dev/null | \
+        sed 's/_source_dir_host:[ ]\+//')
+    if [ -n "${SOURCE_DIR_HOST}" ]; then
+        KAS_REPO_DIR="${SOURCE_DIR_HOST}"
+    fi
+
+    if [ "${KAS_CMD}" = "menu" ]; then
+        if [ -z "${KAS_FIRST_FILE}" ]; then
+            KAS_FIRST_FILE="Kconfig"
+        fi
+
+        # When using the menu plugin, we need to track the KAS_REPO_DIR outside
+        # of the container to later allow a simple `kas-container build`. For
+        # that, we tell the kas menu plugin via an env-var about the location
+        # on the host. This data is then added to the .config.yaml where it can
+        # be evaluated by the next invocation of kas-container.
+
+        if ! [ "$(realpath -qe "${KAS_REPO_DIR}")" = "$(realpath -qe "${KAS_WORK_DIR}")" ]; then
+            set -- "$@" -e _KAS_REPO_DIR_HOST="$(readlink -fv "${KAS_REPO_DIR}")"
+        fi
+
+        BUILD_SYSTEM=$(tr '\n' '\f' 2>/dev/null < "${KAS_FIRST_FILE}" | \
+            sed -e 's/\(.*\fconfig KAS_BUILD_SYSTEM\f\(.*\)\|.*\)/\2/' \
+                -e 's/\f\([[:alpha:]].*\|$\)//' \
+                -e 's/.*default \"\(.*\)\".*/\1/')
+    else
+        if [ -z "${KAS_FIRST_FILE}" ]; then
+            KAS_FIRST_FILE="${KAS_WORK_DIR}/.config.yaml"
+        fi
+
+        BUILD_SYSTEM=$(grep -e "^build_system: " "${KAS_FIRST_FILE}" 2>/dev/null | \
+            sed 's/build_system:[ ]\+//')
+    fi
+
+    if [ "${BUILD_SYSTEM}" = "isar" ]; then
+        enable_isar_mode
+    elif [ -z "${ISAR_MODE}" ]; then
+        enable_oe_mode
+    fi
 else
-	KAS_REPO_DIR=$(pwd)
-fi
-
-SOURCE_DIR_HOST=$(
-	grep -e "^_source_dir_host: " "${KAS_WORK_DIR}/.config.yaml" 2>/dev/null | \
-	sed 's/_source_dir_host:[ ]\+//')
-if [ -n "${SOURCE_DIR_HOST}" ]; then
-	KAS_REPO_DIR="${SOURCE_DIR_HOST}"
-fi
-
-if [ "${KAS_CMD}" = "menu" ]; then
-	if [ -z "${KAS_FIRST_FILE}" ]; then
-		KAS_FIRST_FILE="Kconfig"
-	fi
-
-	# When using the menu plugin, we need to track the KAS_REPO_DIR outside
-	# of the container to later allow a simple `kas-container build`. For
-	# that, we tell the kas menu plugin via an env-var about the location
-	# on the host. This data is then added to the .config.yaml where it can
-	# be evaluated by the next invocation of kas-container.
-
-	if ! [ "$(realpath -qe "${KAS_REPO_DIR}")" = "$(realpath -qe "${KAS_WORK_DIR}")" ]; then
-		set -- "$@" -e _KAS_REPO_DIR_HOST="$(readlink -fv "${KAS_REPO_DIR}")"
-	fi
-
-	BUILD_SYSTEM=$(tr '\n' '\f' 2>/dev/null < "${KAS_FIRST_FILE}" | \
-		sed -e 's/\(.*\fconfig KAS_BUILD_SYSTEM\f\(.*\)\|.*\)/\2/' \
-		    -e 's/\f\([[:alpha:]].*\|$\)//' \
-		    -e 's/.*default \"\(.*\)\".*/\1/')
-else
-	if [ -z "${KAS_FIRST_FILE}" ]; then
-		KAS_FIRST_FILE="${KAS_WORK_DIR}/.config.yaml"
-	fi
-
-	BUILD_SYSTEM=$(grep -e "^build_system: " "${KAS_FIRST_FILE}" 2>/dev/null | \
-		sed 's/build_system:[ ]\+//')
-fi
-
-if [ "${BUILD_SYSTEM}" = "isar" ]; then
-	enable_isar_mode
-elif [ -z "${ISAR_MODE}" ]; then
-	enable_oe_mode
+    KAS_RUNCMD_CMD="$*"
+    shift $#
+    debug "remaining args captured as runcmd command: $KAS_RUNCMD_CMD"
 fi
 
 set_container_image_var
@@ -482,6 +491,15 @@ set -- "$@" -v "${KAS_REPO_DIR}:/repo:${KAS_REPO_MOUNT_OPT}" \
 	-e KAS_BUILD_DIR=/build \
 	-e USER_ID="$(id -u)" -e GROUP_ID="$(id -g)" --rm --init \
     -e KAS_VERBOSE=${KAS_VERBOSE:-0}
+
+# runcmd short circuit: just run non-kas command in container
+# including above setup, excluding below kas-specific setup
+if [ "${KAS_CMD#*runcmd}" != "runcmd" ]; then
+	set -- "$@" "--user=root" "${KAS_CONTAINER_IMAGE}" ${KAS_RUNCMD_CMD}
+    # shellcheck disable=SC2086
+    trace ${KAS_CONTAINER_COMMAND} run "$@"
+	exit 0
+fi
 
 if [ -n "${KAS_SSH_DIR}" ] ; then
 	if [ ! -d "${KAS_SSH_DIR}" ]; then

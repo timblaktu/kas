@@ -22,7 +22,9 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-log() { [ $KAS_VERBOSE -eq 1 ] && printf "ENTRYPOINT: %s\n" "$*"; }
+log() { 
+    [ $KAS_VERBOSE -eq 1 ] && echo "container-entrypoint: $*\n" 
+}
 
 # kas-isar: sudo update-binfmts --enable && [ -f /proc/sys/fs/binfmt_misc/status ]
 
@@ -49,10 +51,10 @@ elif [ "$USER_ID" = 0 ]; then
 	GOSU=""
 else
     GROUP_ID=${GROUP_ID:-$(id -g)}
-	log "kas-container call running as modified builder user with %s:%s\n" "$USER_ID" "$GROUP_ID"
+	log "kas-container call running as modified builder user with $USER_ID:$GROUP_ID"
 	GOSU="gosu builder"
     
-	groupmod -o --gid "$GROUP_ID" builder
+    groupmod -o --gid "$GROUP_ID" builder
 	usermod -o --uid "$USER_ID" --gid "$GROUP_ID" builder >/dev/null
 	chown -R "$USER_ID":"$GROUP_ID" /builder
 	# copy host SSH config into home of builder
@@ -68,20 +70,20 @@ fi
 if [ -n "$1" ]; then
 	case "$1" in
 	build|checkout|dump|for-all-repos|menu|shell|-*)
-		log "executing kas command..%s\n" "$*"
+		log "executing kas command as: exec $GOSU kas $@"
         # SC2086: Double quote to prevent globbing and word splitting.
 		# shellcheck disable=2086
 		exec $GOSU kas "$@"
 		;;
 	*)
-		log "executing non-kas command %s..\n" "$*"
+		log "executing non-kas command as: exec $GOSU $@"
 		# SC2086: Double quote to prevent globbing and word splitting.
 		# shellcheck disable=2086
 		exec $GOSU "$@"
 		;;
 	esac
 else
-    log "ENTRYPOINT: executing bash..\n"
+    log "executing bash as: exec $GOSU bash"
 	# SC2086: Double quote to prevent globbing and word splitting.
 	# shellcheck disable=2086
 	exec $GOSU bash
