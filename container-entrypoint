@@ -23,7 +23,7 @@
 # SOFTWARE.
 
 log() { 
-    [ $KAS_VERBOSE -eq 1 ] && echo "container-entrypoint: $*\n" 
+    [ $KAS_VERBOSE -eq 1 ] && echo "container-entrypoint: $*" 
 }
 
 # kas-isar: sudo update-binfmts --enable && [ -f /proc/sys/fs/binfmt_misc/status ]
@@ -40,14 +40,14 @@ EOF
 fi
 
 if [ -z "$USER_ID" ]; then
-    log "Not a kas-container call, running as %s:%s\n" "$(id -u)" "$(id -g)"
+    log "Not a kas-container call, running as %s:%s" "$(id -u)" "$(id -g)"
 	GOSU=""
 
 	# Work around gitlab-runner not aligning checked out repo ownership
 	# with our builder user
 	sudo git config --system safe.directory "*"
 elif [ "$USER_ID" = 0 ]; then
-	log "kas-container call running as root\n"
+	log "kas-container call running as root"
 	GOSU=""
 else
     GROUP_ID=${GROUP_ID:-$(id -g)}
