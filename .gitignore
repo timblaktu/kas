@@ -58,3 +58,6 @@ ENV/
 
 # release automation
 release-email.txt
+
+# vim sessions
+**/*.vim

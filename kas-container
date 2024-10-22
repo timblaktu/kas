@@ -28,7 +28,7 @@
 set -e
 # check verbosity early to enable debugging
 _="$*"
-[ "${_#*-v }" != "$*" -o "${_#*-d }" != "$*" -o "${_#*-l debug}" -o "${_#*--log-level debug}" ] && KAS_VERBOSE=1
+[ "${_#*-v}" != "$_" -o "${_#*-d}" != "$_" -o "${_#*-l debug}" != "$_" -o "${_#*--log-level debug}" != "$_" ] && KAS_VERBOSE=1
 
 KAS_IMAGE_VERSION_DEFAULT="4.5"
 KAS_CONTAINER_IMAGE_PATH_DEFAULT="ghcr.io/siemens/kas"
