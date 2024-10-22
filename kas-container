@@ -26,6 +26,7 @@
 # SOFTWARE.
 
 set -e
+
 # check verbosity early to enable debugging
 _="$*"
 [ "${_#*-v}" != "$_" -o "${_#*-d}" != "$_" -o "${_#*-l debug}" != "$_" -o "${_#*--log-level debug}" != "$_" ] && KAS_VERBOSE=1
@@ -176,9 +177,6 @@ trace mkdir -p "${KAS_WORK_DIR}"
 KAS_BUILD_DIR=$(readlink -fv "${KAS_BUILD_DIR:-${KAS_WORK_DIR}/build}")
 trace mkdir -p "${KAS_BUILD_DIR}"
 
-### MAIN?
-
-
 KAS_CONTAINER_ENGINE="${KAS_CONTAINER_ENGINE:-${KAS_DOCKER_ENGINE}}"
 if [ -z "${KAS_CONTAINER_ENGINE}" ]; then
 	# Try to auto-detect a container engine
@@ -308,7 +306,6 @@ while [ $# -gt 0 ]; do
 		usage 0
 		;;
 	--*)
-		echo "--*"
 		usage
 		;;
 	clean|cleansstate|cleanall)
@@ -345,6 +342,9 @@ while [ $# -gt 0 ]; do
 	esac
     debug "$# args remaining: $*"
 done
+
+debug "done parsing args."
+debug "$# args remaining: $*"
 
 [ -n "${KAS_CMD}" ] || usage
 
@@ -467,7 +467,7 @@ fi
 
 set_container_image_var
 
-[ -n "$KAS_VERBOSE" ] && set -- "$@" -e KAS_VERBOSE=$KAS_VERBOSE
+set -- "$@" ${KAS_VERBOSE:+-e KAS_VERBOSE="$KAS_VERBOSE"}
 
 # short circuit for clean* commands. We just need
 # the build-system information, but no repo mounts, etc...
@@ -498,6 +498,7 @@ set -- "$@" -v "${KAS_REPO_DIR}:/repo:${KAS_REPO_MOUNT_OPT}" \
 if [ "${KAS_CMD#*runcmd}" != "runcmd" ]; then
 	set -- "$@" "--user=root" "${KAS_CONTAINER_IMAGE}" ${KAS_RUNCMD_CMD}
     # shellcheck disable=SC2086
+    set -x
     trace ${KAS_CONTAINER_COMMAND} run "$@"
 	exit 0
 fi
