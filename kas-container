@@ -29,7 +29,10 @@ set -e
 
 # check verbosity early to enable debugging
 _="$*"
-[ "${_#*-v}" != "$_" -o "${_#*-d}" != "$_" -o "${_#*-l debug}" != "$_" -o "${_#*--log-level debug}" != "$_" ] && KAS_VERBOSE=1
+if [ "${_#*-v}" != "$_" -o "${_#*-d}" != "$_" -o "${_#*-l debug}" != "$_" -o "${_#*--log-level debug}" != "$_" ]
+then
+    KAS_VERBOSE=1
+fi
 
 KAS_IMAGE_VERSION_DEFAULT="4.5"
 KAS_CONTAINER_IMAGE_PATH_DEFAULT="ghcr.io/siemens/kas"
@@ -107,12 +110,16 @@ warning(){
 }
 
 debug(){ 
-	[ -n "${KAS_VERBOSE}" ] && echo "${KAS_CONTAINER_SELF_NAME}: DEBUG: $*" >&2
+	if [ -n "${KAS_VERBOSE}" ]; then
+        echo "${KAS_CONTAINER_SELF_NAME}: DEBUG: $*" >&2
+    fi
 }
 
 trace(){
-	[ -n "${KAS_VERBOSE}" ] && echo "+ $*" >&2
-	"$@"
+	if [ -n "${KAS_VERBOSE}" ]; then
+        echo "+ $*" >&2
+    fi
+    "$@"
 }
 
 enable_isar_mode() {
@@ -498,7 +505,6 @@ set -- "$@" -v "${KAS_REPO_DIR}:/repo:${KAS_REPO_MOUNT_OPT}" \
 if [ "${KAS_CMD#*runcmd}" != "runcmd" ]; then
 	set -- "$@" "--user=root" "${KAS_CONTAINER_IMAGE}" ${KAS_RUNCMD_CMD}
     # shellcheck disable=SC2086
-    set -x
     trace ${KAS_CONTAINER_COMMAND} run "$@"
 	exit 0
 fi
