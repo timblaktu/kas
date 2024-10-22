@@ -22,9 +22,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-log() { 
-    [ $KAS_VERBOSE -eq 1 ] && echo "container-entrypoint: $*" 
-}
+log() { [ -n "$KAS_VERBOSE" ] && echo "container-entrypoint: $*" }
 
 # kas-isar: sudo update-binfmts --enable && [ -f /proc/sys/fs/binfmt_misc/status ]
 

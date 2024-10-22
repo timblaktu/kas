@@ -467,6 +467,8 @@ fi
 
 set_container_image_var
 
+[ -n "$KAS_VERBOSE" ] && set -- "$@" -e KAS_VERBOSE=$KAS_VERBOSE
+
 # short circuit for clean* commands. We just need
 # the build-system information, but no repo mounts, etc...
 if echo "${KAS_CMD}" | grep -qe "^clean"; then
@@ -489,8 +491,7 @@ set -- "$@" -v "${KAS_REPO_DIR}:/repo:${KAS_REPO_MOUNT_OPT}" \
 	-v "${KAS_BUILD_DIR}":/build:rw \
 	--workdir=/repo \
 	-e KAS_BUILD_DIR=/build \
-	-e USER_ID="$(id -u)" -e GROUP_ID="$(id -g)" --rm --init \
-    -e KAS_VERBOSE=${KAS_VERBOSE:-0}
+	-e USER_ID="$(id -u)" -e GROUP_ID="$(id -g)" --rm --init
 
 # runcmd short circuit: just run non-kas command in container
 # including above setup, excluding below kas-specific setup
