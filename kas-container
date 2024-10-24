@@ -27,7 +27,7 @@
 
 set -e
 
-# check verbosity early to enable debugging
+# early verbosity check enabling early tracing/debugging
 _="$*"
 if [ "${_#*-v}" != "$_" -o "${_#*-d}" != "$_" -o "${_#*-l debug}" != "$_" -o "${_#*--log-level debug}" != "$_" ]
 then
@@ -179,7 +179,6 @@ set_container_image_var() {
 }
 
 KAS_WORK_DIR=$(readlink -fv "${KAS_WORK_DIR:-$(pwd)}")
-# KAS_WORK_DIR needs to exist for the subsequent code
 trace mkdir -p "${KAS_WORK_DIR}"
 KAS_BUILD_DIR=$(readlink -fv "${KAS_BUILD_DIR:-${KAS_WORK_DIR}/build}")
 trace mkdir -p "${KAS_BUILD_DIR}"
@@ -502,7 +501,7 @@ set -- "$@" -v "${KAS_REPO_DIR}:/repo:${KAS_REPO_MOUNT_OPT}" \
 
 # runcmd short circuit: just run non-kas command in container
 # including above setup, excluding below kas-specific setup
-if [ "${KAS_CMD#*runcmd}" != "runcmd" ]; then
+if [ "$KAS_CMD" = "runcmd" ]; then
 	set -- "$@" "--user=root" "${KAS_CONTAINER_IMAGE}" ${KAS_RUNCMD_CMD}
     # shellcheck disable=SC2086
     trace ${KAS_CONTAINER_COMMAND} run "$@"
